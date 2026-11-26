@@ -118,13 +118,19 @@ class RAGSystem:
         if session_id:
             history = self.session_manager.get_conversation_history(session_id)
         
-        # Generate response using AI with tools
+        # Generate response using AI with tools, capturing what search returned
+        retrieved: List[str] = []
         response = self.ai_generator.generate_response(
             query=prompt,
             conversation_history=history,
             tools=self.tool_manager.get_tool_definitions(),
-            tool_manager=self.tool_manager
+            tool_manager=self.tool_manager,
+            retrieved=retrieved
         )
+
+        # Quality pass: only when a search happened, so there is content to check against
+        if self.config.ENABLE_ANSWER_REFINEMENT and retrieved:
+            response = self.ai_generator.refine_response(query, response, retrieved)
         
         # Get sources from the search tool
         sources = self.tool_manager.get_last_sources()

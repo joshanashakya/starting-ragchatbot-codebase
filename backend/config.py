@@ -21,6 +21,10 @@ class Config:
     MAX_RESULTS: int = 5         # Maximum search results to return
     MAX_HISTORY: int = 2         # Number of conversation messages to remember
     
+    # Answer quality: verify/revise answers against the retrieved content
+    # (costs one extra API call for each answer that used search)
+    ENABLE_ANSWER_REFINEMENT: bool = os.getenv("ENABLE_ANSWER_REFINEMENT", "true").lower() == "true"
+    
     # Database paths
     CHROMA_PATH: str = "./chroma_db"  # ChromaDB storage location
 
