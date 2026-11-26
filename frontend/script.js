@@ -125,7 +125,7 @@ function addMessage(content, type, sources = null, isWelcome = false) {
         html += `
             <details class="sources-collapsible">
                 <summary class="sources-header">Sources</summary>
-                <div class="sources-content">${sources.join(', ')}</div>
+                <div class="sources-content">${sources.map(renderSource).join(', ')}</div>
             </details>
         `;
     }
@@ -135,6 +135,17 @@ function addMessage(content, type, sources = null, isWelcome = false) {
     chatMessages.scrollTop = chatMessages.scrollHeight;
     
     return messageId;
+}
+
+// Render a source ({text, url}) as a link that opens in a new tab.
+// The URL is only in the href, so no URL text is visible.
+function renderSource(source) {
+    const text = escapeHtml(source.text);
+    if (source.url && /^https?:\/\//i.test(source.url)) {
+        const href = source.url.replace(/&/g, '&amp;').replace(/"/g, '&quot;');
+        return `<a class="source-link" href="${href}" target="_blank" rel="noopener noreferrer">${text}</a>`;
+    }
+    return `<span>${text}</span>`;
 }
 
 // Helper function to escape HTML for user messages
