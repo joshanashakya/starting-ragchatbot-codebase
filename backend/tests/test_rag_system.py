@@ -79,7 +79,7 @@ class TestQuery:
         """Fake the model's tool call so the real tool + vector store are exercised."""
         rag.add_course_document(sample_course_file)
 
-        def fake_generate(query, conversation_history, tools, tool_manager):
+        def fake_generate(query, conversation_history, tools, tool_manager, retrieved=None):
             tool_manager.execute_tool("search_course_content", query="fixtures", course_name="Intro to Testing")
             return "ok"
 
