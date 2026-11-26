@@ -29,6 +29,29 @@ All responses must be:
 Provide only the direct answer to what was asked.
 """
     
+    # Prompt for the answer-quality pass. The reviewer sees the retrieved context and
+    # either approves the draft or returns a corrected answer.
+    REFINE_PROMPT = """You are a strict quality reviewer for answers about course materials.
+
+Question:
+{query}
+
+Retrieved course content:
+{context}
+
+Draft answer:
+{draft}
+
+Check the draft against the retrieved course content:
+- Every claim must be supported by the content (remove or fix anything that is not).
+- It must directly and completely answer the question using the relevant facts available.
+- It must be brief, clear, and free of meta-commentary (e.g. "based on the search results").
+
+If the draft already meets all of these, reply with exactly: APPROVED
+Otherwise reply with ONLY the corrected answer text, nothing else."""
+
+    APPROVED = "APPROVED"
+
     def __init__(self, api_key: str, model: str):
         self.client = anthropic.Anthropic(api_key=api_key)
         self.model = model
@@ -43,7 +66,8 @@ Provide only the direct answer to what was asked.
     def generate_response(self, query: str,
                          conversation_history: Optional[str] = None,
                          tools: Optional[List] = None,
-                         tool_manager=None) -> str:
+                         tool_manager=None,
+                         retrieved: Optional[List[str]] = None) -> str:
         """
         Generate AI response with optional tool usage and conversation context.
         
@@ -52,6 +76,8 @@ Provide only the direct answer to what was asked.
             conversation_history: Previous messages for context
             tools: Available tools the AI can use
             tool_manager: Manager to execute tools
+            retrieved: Optional list that is filled with the text of every tool
+                result, so callers can verify the answer against it
             
         Returns:
             Generated response as string
@@ -81,12 +107,13 @@ Provide only the direct answer to what was asked.
         
         # Handle tool execution if needed
         if response.stop_reason == "tool_use" and tool_manager:
-            return self._handle_tool_execution(response, api_params, tool_manager)
+            return self._handle_tool_execution(response, api_params, tool_manager, retrieved)
         
         # Return direct response
         return response.content[0].text
     
-    def _handle_tool_execution(self, initial_response, base_params: Dict[str, Any], tool_manager):
+    def _handle_tool_execution(self, initial_response, base_params: Dict[str, Any], tool_manager,
+                               retrieved: Optional[List[str]] = None):
         """
         Handle execution of tool calls and get follow-up response.
         
@@ -113,6 +140,9 @@ Provide only the direct answer to what was asked.
                     **content_block.input
                 )
                 
+                if retrieved is not None:
+                    retrieved.append(tool_result)
+
                 tool_results.append({
                     "type": "tool_result",
                     "tool_use_id": content_block.id,
@@ -133,3 +163,29 @@ Provide only the direct answer to what was asked.
         # Get final response
         final_response = self.client.messages.create(**final_params)
         return final_response.content[0].text
+
+    def refine_response(self, query: str, draft: str, context: List[str]) -> str:
+        """
+        Quality pass: check a draft answer against the retrieved content and
+        return a corrected answer, or the draft unchanged if it is already good.
+
+        Never raises: on any failure the original draft is returned.
+        """
+        if not context:
+            return draft
+
+        try:
+            review = self.client.messages.create(
+                **self.base_params,
+                system="You review and correct answers. Output only what you are asked for.",
+                messages=[{"role": "user", "content": self.REFINE_PROMPT.format(
+                    query=query, context="\n\n".join(context), draft=draft)}],
+            )
+            text = review.content[0].text.strip()
+        except Exception as e:
+            print(f"Answer refinement failed, using draft: {e}")
+            return draft
+
+        if not text or text.upper().startswith(self.APPROVED):
+            return draft
+        return text
