@@ -17,6 +17,7 @@ document.addEventListener('DOMContentLoaded', () => {
     courseTitles = document.getElementById('courseTitles');
     
     setupEventListeners();
+    setupThemeToggle();
     createNewSession();
     loadCourseStats();
 });
@@ -40,6 +41,26 @@ function setupEventListeners() {
     });
 }
 
+
+// Theme toggle (dark default, persisted in localStorage)
+function setupThemeToggle() {
+    const toggle = document.getElementById('themeToggle');
+    const root = document.documentElement;
+
+    const sync = () => {
+        const isLight = root.getAttribute('data-theme') === 'light';
+        toggle.setAttribute('aria-label', isLight ? 'Switch to dark theme' : 'Switch to light theme');
+    };
+    sync();
+
+    toggle.addEventListener('click', () => {
+        const next = root.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
+        if (next === 'light') root.setAttribute('data-theme', 'light');
+        else root.removeAttribute('data-theme');
+        try { localStorage.setItem('theme', next); } catch (e) {}
+        sync();
+    });
+}
 
 // Chat Functions
 async function sendMessage() {
